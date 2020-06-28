@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "target": "es2020",
+        "sourceMap": true,
+        "removeComments": false,
+        "module": "CommonJS"
+    },
+    "exclude": [
+        "node_modules"
+    ],
+    "include": [
+        "main.ts"
+    ]
+}
