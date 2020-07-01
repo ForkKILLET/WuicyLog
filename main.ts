@@ -129,7 +129,7 @@ class Logger {
         }
     }
 
-    analyse() {
+    analyze() {
         let i = 0
         for (let n in logRule) {
             let z = logRule[n],
@@ -141,7 +141,7 @@ class Logger {
 
     from(log: string, style: "commit"): Logger {
         this.log = log
-        try { this.analyse() } catch (e) {
+        try { this.analyze() } catch (e) {
             this.struct = e
         }
         return this
