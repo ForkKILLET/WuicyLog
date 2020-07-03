@@ -1,13 +1,12 @@
 // :: Locomotive
 
 type nestedArray <T> = (T | nestedArray <T>) []
-type nestedItem <T> = T | nestedArray <T>
 
 // :: Main
 
-class LogStruct {
+class WuicyLogStruct {
     version = {}
-    thanks = {}
+    thanks = []
     modify = []
     release = []
     documents = []
@@ -15,11 +14,8 @@ class LogStruct {
 }
 
 type mapArray   = nestedArray   <string | symbol>
-type mapItem    = nestedItem    <string | symbol>
 type resArray   = nestedArray   <string | boolean | number>
-type resItem    = nestedItem    <string | boolean | number>
-
-interface ILogZoneMatchRes {
+interface wLogZoneMatchRes {
     res: resArray
     idx: number
 }
@@ -28,9 +24,35 @@ const val = Symbol("LogMapVal")
 const each = Symbol("LogMapEach")
 const keys = Symbol("LogMapKeys")
 
-const logRule: {
+function wLogListMatcher(title: RegExp, key: RegExp, tag: string) {
+    return s => {
+        let idx: number
+        s = s.substring(idx = s.match(title)?.[0].length)
+        if (s == null) return
+        let tagNum = tag.length
+        tag = tag.replace(/(?=[\\^\[\]])/g, "\\")
+        let re = RegExp(`(?:${key.source}([${tag}]{0,${tagNum}}): +((?:[\\S ]+?(?: {3}\\n)?)+?))(?: {2}\\n|\\n{2})`)
+        let rr: RegExpMatchArray = s.match(RegExp(re, "g"))
+        if (rr == null) return
+        let res: (string | boolean)[][] = [], i: (string | boolean)[], curTag: string,
+            items = Array.from(rr), tagRes: boolean[]
+        for (let m of items) {
+            idx += m.length
+            i = Array.from(m.match(re))
+            curTag = i[2] as string
+            tagRes = []
+            for (let i = 0; i < tag.length; i++) tagRes.push(curTag.includes(tag[i]))
+            res.push(i.slice(0, 2).concat(tagRes).concat(i[3]))
+        }
+        return {
+            res: res,
+            idx: idx
+        }
+    }
+}
+const wLogRule: {
     [index: string]: {
-        matcher: (s: string) => ILogZoneMatchRes
+        matcher: (s: string) => wLogZoneMatchRes
         map: mapArray,
         sample: string
     }
@@ -55,30 +77,25 @@ const logRule: {
 VER aβ c #def 11.45.14 gh ijk lm: nop
 
 `   },
+    thanks: {
+        matcher: wLogListMatcher(/^THANKS\n{2}/, /(?:@(\S+?))/, "!$'"),
+        map: [
+            [ each, [ null,
+                [ "user", val ], [ "great", val ], [ "econ", val ], [ "code", val ], [ "brief", val ]
+            ] ]
+        ],
+        sample: `
+THANKS
+
+@wuxianucw!:    UCW is our red sun!  
+@smallfang$:    He offered fk a nice domain for free!  
+@bohanjun$':    Built an internal high-speed mirror node.   
+                Optimized some CSS for fk.
+
+`   },
     modify: {
-        matcher: s => {
-            s = s.substring(s.match(/^MODIFY\n{2}/)?.index)
-            if (s == null) return
-            let r = /(?:(add|rmv|cfg|rfct|upg|dng|styl)([?!]{0,2}): +([\S\n ]+?))(?: {2}\n|\n{2})/
-            let rr = s.match(RegExp(r, "g"))
-            if (rr == null) return
-            let res: (string | boolean)[][] = [], i: (string | boolean)[], tag: string, idx = 0,
-                items = Array.from(rr)
-            for (let m of items) {
-                idx += m.length
-                i = Array.from(m.match(r))
-                tag = i[2] as string
-                res.push(i
-                    .slice(0, 2).concat([ tag.includes("!"), tag.includes("?") ])
-                    .concat((i[3] as string).replace(/ {2}\n|\n{2}$/, ""))
-                )
-            }
-            return {
-                res: res,
-                idx: idx
-            }
-        },
-        map: [ null,
+        matcher: wLogListMatcher(/^MODIFY\n{2}/, /(add|rmv|cfg|rfct|upg|dng|styl|mod)/, "!?"),
+        map: [
             [ each, [ null,
                 [ "type", val ], [ "great", val ], [ "dev", val ], [ "brief", val ]
             ] ]
@@ -88,16 +105,16 @@ MODIFY
 
 add!:       ohhhhhh  
 rmv?:       'sudo rm -rf /'  
-cfg:        a lot of config  
+cfg:        a lot of config   
             config config config config config...  
 rfct?!:     I LOVE instability!
 
 `   }
 }
 
-class Logger {
+class WuicyLogger {
     log: string
-    struct: LogStruct | string = new LogStruct()
+    struct: WuicyLogStruct | string = new WuicyLogStruct()
 
     constructor() {}
 
@@ -128,18 +145,19 @@ class Logger {
             }
         }
     }
-
     analyse() {
         let i = 0
-        for (let n in logRule) {
-            let z = logRule[n],
-                r = z.matcher(this.log = this.log.substring(i))
+        let s = this.log
+        for (let n in wLogRule) {
+            let z = wLogRule[n],
+                r = z.matcher(s = s.substring(i))
+            if (r == null) continue
             i = r.idx
             this.doMap(z.map, this.struct[n], r.res, keys)
         }
     }
 
-    from(log: string, style: "commit"): Logger {
+    from(log: string, style: "commit"): WuicyLogger {
         this.log = log
         try { this.analyse() } catch (e) {
             this.struct = e
@@ -148,18 +166,18 @@ class Logger {
     }
 
     to(style: "json") {
-        return this.struct instanceof Error ? this.struct : JSON.stringify(this.struct)
+        return this.struct instanceof Error ? this.struct : JSON.stringify(this.struct, null, 4)
     }
 
     test() {
         let s = ""
-        for (let z in logRule) s += logRule[z].sample.substring(1)
+        for (let z in wLogRule) s += wLogRule[z].sample.substring(1)
         console.log(logger.from(s, "commit").to("json"))
     }
 }
 
-let logger = new Logger()
+let logger = new WuicyLogger()
 export default logger
 
 // Debug:
-// logger.test()
+logger.test()
